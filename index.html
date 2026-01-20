@@ -56,7 +56,8 @@
                 <input type="password" id="password" placeholder="비밀번호" style="width:100%;">
                 <span class="pw-toggle" onclick="togglePassword('password', this)">👁️</span>
             </div>
-            <button class="btn" style="width:100%; margin-top:10px;" onclick="login()">시작하기</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:var(--accent);" onclick="login()">로그인</button>
+            <button class="btn" style="width:100%; margin-top:8px; background:#666;" onclick="register()">회원가입</button>
         </div>
     </div>
 
@@ -190,20 +191,36 @@
             return `${year}년 ${month}월 ${date}일 ${ampm} ${h}:${m}`;
         }
 
-        // --- 로그인 및 상태 체크 (실패 안내 추가) ---
+        // --- 로그인 함수 ---
         async function login() {
-            const e = document.getElementById('email').value; const p = document.getElementById('password').value;
+            const e = document.getElementById('email').value.trim(); 
+            const p = document.getElementById('password').value;
             if(!e || !p) return alert("이메일과 비밀번호를 입력해주세요.");
             try { 
-                await auth.signInWithEmailAndPassword(e,p); 
+                await auth.signInWithEmailAndPassword(e, p); 
             } catch (err) { 
-                if(err.code === 'auth/wrong-password') {
-                    alert("로그인 실패: 비밀번호가 일치하지 않습니다.");
-                } else if(err.code === 'auth/user-not-found') {
-                    // 사용자가 없으면 회원가입 시도
-                    try { await auth.createUserWithEmailAndPassword(e,p); } catch(e2) { alert("가입 실패: " + e2.message); }
+                if(err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+                    alert("로그인 실패: 이메일 또는 비밀번호가 틀렸습니다.");
                 } else {
-                    alert("로그인에 실패했습니다: " + err.message);
+                    alert("로그인 에러: " + err.message);
+                }
+            }
+        }
+
+        // --- 회원가입 함수 ---
+        async function register() {
+            const e = document.getElementById('email').value.trim(); 
+            const p = document.getElementById('password').value;
+            if(!e || !p) return alert("가입할 이메일과 비밀번호를 입력해주세요.");
+            if(p.length < 6) return alert("비밀번호는 최소 6자리 이상이어야 합니다.");
+            try { 
+                await auth.createUserWithEmailAndPassword(e, p);
+                alert("회원가입이 완료되었습니다! 초기 프로필 설정을 진행합니다.");
+            } catch (err) { 
+                if(err.code === 'auth/email-already-in-use') {
+                    alert("이미 가입된 이메일입니다.");
+                } else {
+                    alert("가입 실패: " + err.message);
                 }
             }
         }
@@ -231,11 +248,8 @@
             const n = document.getElementById('setup-nick').value; const i = document.getElementById('setup-id').value.toLowerCase().trim();
             if(n.length < 1 || n.length > 100) return alert("닉네임은 1~100자 사이로 입력해주세요.");
             if(i.length < 4 || i.length > 50) return alert("아이디는 4~50자 사이로 입력해주세요.");
-            
-            // 아이디 형식 검사 (영문, 숫자, ., _만 허용)
             const idRegex = /^[a-z0-9._]+$/;
             if(!idRegex.test(i)) return alert("아이디는 영문자, 숫자, 마침표(.), 밑줄(_)만 사용 가능합니다.");
-
             const check = await db.collection("users").where("userId", "==", i).get();
             if(!check.empty) return alert("이미 존재하는 아이디입니다.");
             await db.collection("users").doc(auth.currentUser.uid).set({ nickname: n, userId: i, friends: [], requests: [], sentRequests: [], lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() });
