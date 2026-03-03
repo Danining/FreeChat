@@ -23,13 +23,16 @@
 
         /* 메시지 디자인 */
         .chat-box { flex: 1; overflow-y: auto; background: #f9f9f9; padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px; }
-        .msg-bar { width: 100%; padding: 10px 12px; border-radius: 8px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-left: 5px solid #ddd; }
+        .msg-bar { width: 100%; padding: 10px 12px; border-radius: 8px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-left: 5px solid #ddd; position: relative; }
         .msg-bar.me { border-left-color: var(--me-border); }
         .msg-bar.other { border-left-color: var(--other-border); }
         .msg-header { font-size: 12px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
         .msg-nick { font-weight: bold; color: #333; }
         .msg-date { color: #aaa; font-size: 11px; }
         .msg-content { font-size: 14px; color: #000; font-weight: 500; line-height: 1.4; word-break: break-all; }
+        
+        /* 삭제 버튼 스타일 */
+        .del-btn { position: absolute; right: 10px; top: 10px; font-size: 10px; color: #ff4d4d; cursor: pointer; border: none; background: none; font-weight: bold; }
 
         /* 공통 UI */
         .list-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
@@ -191,6 +194,21 @@
             return `${year}년 ${month}월 ${date}일 ${ampm} ${h}:${m}`;
         }
 
+        // --- 삭제 함수 추가 ---
+        async function deleteMsg(col, docId, isDM = false) {
+            if(!confirm("메시지를 삭제하시겠습니까?")) return;
+            try {
+                if(isDM) {
+                    const dmId = [my.uid, currentDMId].sort().join("_");
+                    await db.collection("dms").doc(dmId).collection("messages").doc(docId).delete();
+                } else if(col === 'group') {
+                    await db.collection("groups").doc(currentGroupId).collection("messages").doc(docId).delete();
+                } else {
+                    await db.collection("public_msgs").doc(docId).delete();
+                }
+            } catch(e) { alert("삭제 권한이 없거나 오류가 발생했습니다."); }
+        }
+
         // --- 로그인 함수 ---
         async function login() {
             const e = document.getElementById('email').value.trim(); 
@@ -256,12 +274,21 @@
             location.reload();
         }
 
-        function renderMsg(doc) {
+        function renderMsg(doc, colType) {
             const m = doc.data();
             const isMe = m.senderId === my.uid;
             if(m.system) return `<div style="text-align:center; font-size:11px; color:#888; margin:10px 0; background:#f0f0f0; padding:4px; border-radius:4px;">${m.text}</div>`;
+            
+            let delBtn = "";
+            if(isMe) {
+                if(colType === 'dm') delBtn = `<button class="del-btn" onclick="deleteMsg('', '${doc.id}', true)">삭제</button>`;
+                else if(colType === 'group') delBtn = `<button class="del-btn" onclick="deleteMsg('group', '${doc.id}')">삭제</button>`;
+                else delBtn = `<button class="del-btn" onclick="deleteMsg('public_msgs', '${doc.id}')">삭제</button>`;
+            }
+
             return `
             <div class="msg-bar ${isMe ? 'me' : 'other'}">
+                ${delBtn}
                 <div class="msg-header">
                     <span class="msg-nick">${m.nickname}(@${m.userId})</span>
                     <span class="msg-date">${formatFullDate(m.timestamp)}</span>
@@ -288,7 +315,7 @@
         function loadPublicMsgs() {
             db.collection("public_msgs").orderBy("timestamp").onSnapshot(snap => {
                 const box = document.getElementById('chat-window');
-                box.innerHTML = snap.docs.map(doc => renderMsg(doc)).join("");
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'public')).join("");
                 box.scrollTop = box.scrollHeight;
             });
         }
@@ -316,8 +343,9 @@
         }
         async function loadFriends() {
             const d = await db.collection("users").doc(my.uid).get();
+            my.friends = d.data().friends || [];
             const list = document.getElementById('friends-list'); list.innerHTML = "";
-            (d.data().friends || []).forEach(f => {
+            my.friends.forEach(f => {
                 list.innerHTML += `<div class="list-item"><span><b>${f.nick}</b>(@${f.id})</span><button class="btn" onclick="openDM('${f.uid}','${f.nick}')">채팅</button></div>`;
             });
         }
@@ -328,7 +356,7 @@
             const dmId = [my.uid, uid].sort().join("_");
             db.collection("dms").doc(dmId).collection("messages").orderBy("timestamp").onSnapshot(snap => {
                 const box = document.getElementById('dm-chat');
-                box.innerHTML = snap.docs.map(doc => renderMsg(doc)).join("");
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'dm')).join("");
                 box.scrollTop = box.scrollHeight;
             });
         }
@@ -375,7 +403,7 @@
             });
             db.collection("groups").doc(id).collection("messages").orderBy("timestamp").onSnapshot(snap => {
                 const box = document.getElementById('group-chat-window');
-                box.innerHTML = snap.docs.map(doc => renderMsg(doc)).join("");
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'group')).join("");
                 box.scrollTop = box.scrollHeight;
             });
         }
