@@ -277,10 +277,14 @@
         function renderMsg(doc, colType) {
             const m = doc.data();
             const isMe = m.senderId === my.uid;
+            // 특정 사용자(danwoo5235@gmail.com)인지 확인
+            const isAdmin = auth.currentUser && auth.currentUser.email === 'danwoo5235@gmail.com';
+
             if(m.system) return `<div style="text-align:center; font-size:11px; color:#888; margin:10px 0; background:#f0f0f0; padding:4px; border-radius:4px;">${m.text}</div>`;
             
             let delBtn = "";
-            if(isMe) {
+            // 본인이거나 관리자(isAdmin)일 경우 삭제 버튼 노출
+            if(isMe || isAdmin) {
                 if(colType === 'dm') delBtn = `<button class="del-btn" onclick="deleteMsg('', '${doc.id}', true)">삭제</button>`;
                 else if(colType === 'group') delBtn = `<button class="del-btn" onclick="deleteMsg('group', '${doc.id}')">삭제</button>`;
                 else delBtn = `<button class="del-btn" onclick="deleteMsg('public_msgs', '${doc.id}')">삭제</button>`;
