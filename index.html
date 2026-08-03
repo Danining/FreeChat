@@ -1,840 +1,489 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>FreeChat Pro</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <!-- CDN 오타 수정 (all.min.com -> all.min.css) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    :root {
-      --bg: #1e1e2e;
-      --sidebar-bg: #181825;
-      --card-bg: #2b2b3d;
-      --accent: #89b4fa;
-      --my-msg-border: #a6e3a1;
-      --other-msg-border: #f38ba8;
-      --text: #cdd6f4;
-      --subtext: #a6adc8;
-      --danger: #f38ba8;
-    }
-    * { box-sizing: border-box; margin:0; padding:0; font-family: 'Noto Sans KR', sans-serif; }
-    body { background-color: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>FreeChat Pro</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <style>
+        :root { --bg: #f4f4f4; --dark: #333; --me-border: #90ee90; --other-border: #87ceeb; --accent: #0084ff; --system-bg: #fff9c4; }
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); height: 100vh; display: flex; overflow: hidden; }
+        
+        /* 레이아웃 */
+        #sidebar { width: 70px; background: var(--dark); display: none; flex-direction: column; align-items: center; padding: 20px 0; gap: 20px; z-index: 100; }
+        #main-content { flex: 1; display: none; flex-direction: column; background: white; position: relative; }
+        .side-btn { width: 48px; height: 48px; background: #444; border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; border: none; font-size: 20px; }
+        .side-btn.active { background: var(--accent); }
 
-    #offline-overlay {
-      position: fixed; top:0; left:0; width:100vw; height:100vh;
-      background: rgba(0,0,0,0.85); z-index: 9999; display: none;
-      flex-direction: column; justify-content: center; align-items: center; text-align: center;
-    }
-    #offline-overlay i { font-size: 50px; color: var(--danger); margin-bottom: 15px; }
+        .section { display: none; height: 100%; flex-direction: column; padding: 20px; overflow-y: auto; }
+        .section.active { display: flex; }
 
-    #auth-section, #setup-section {
-      position: fixed; top:0; left:0; width:100%; height:100%;
-      background: var(--bg); z-index: 1000; display: flex;
-      justify-content: center; align-items: center;
-    }
-    .auth-card {
-      background: var(--card-bg); padding: 30px; border-radius: 12px;
-      width: 90%; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-    }
-    .auth-card h2 { margin-bottom: 20px; text-align: center; color: var(--accent); }
-    .input-group { margin-bottom: 15px; position: relative; }
-    .input-group input {
-      width: 100%; padding: 12px; background: var(--bg); border: 1px solid #45475a;
-      border-radius: 6px; color: #fff; outline: none;
-    }
-    .input-group i.pw-toggle {
-      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-      cursor: pointer; color: var(--subtext);
-    }
-    .btn {
-      width: 100%; padding: 12px; background: var(--accent); border: none;
-      border-radius: 6px; color: #11111b; font-weight: bold; cursor: pointer; margin-top: 10px;
-    }
-    .btn-secondary { background: #45475a; color: #fff; margin-top: 5px; }
-    
-    #sidebar {
-      width: 70px; background: var(--sidebar-bg); display: flex;
-      flex-direction: column; align-items: center; padding-top: 20px;
-      border-right: 1px solid #313244;
-    }
-    .nav-btn {
-      background: none; border: none; color: var(--subtext); font-size: 20px;
-      margin-bottom: 25px; cursor: pointer; transition: 0.2s; position: relative;
-    }
-    .nav-btn.active, .nav-btn:hover { color: var(--accent); }
-    .badge {
-      position: absolute; top: -5px; right: -5px; background: var(--danger);
-      color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 10px; display: none;
-    }
+        /* 메시지 디자인 */
+        .chat-box { flex: 1; overflow-y: auto; background: #f9f9f9; padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px; }
+        .msg-bar { width: 100%; padding: 10px 12px; border-radius: 8px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-left: 5px solid #ddd; position: relative; }
+        .msg-bar.me { border-left-color: var(--me-border); }
+        .msg-bar.other { border-left-color: var(--other-border); }
+        .msg-header { font-size: 12px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .msg-nick { font-weight: bold; color: #333; }
+        .msg-date { color: #aaa; font-size: 11px; }
+        .msg-content { font-size: 14px; color: #000; font-weight: 500; line-height: 1.4; word-break: break-all; }
+        
+        /* 삭제 버튼 스타일 */
+        .del-btn { position: absolute; right: 10px; top: 10px; font-size: 10px; color: #ff4d4d; cursor: pointer; border: none; background: none; font-weight: bold; }
 
-    #main-content { flex: 1; display: flex; flex-direction: column; position: relative; }
-    .section { display: none; height: 100%; flex-direction: column; padding: 20px; }
-    .section.active { display: flex; }
+        /* 공통 UI */
+        .list-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .btn { padding: 10px 15px; background: var(--dark); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 5px; }
+        .guide { font-size: 11px; color: #888; margin-bottom: 15px; line-height: 1.4; }
 
-    .chat-box { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-    .msg-bar {
-      background: var(--card-bg); padding: 10px 14px; border-radius: 6px;
-      max-width: 80%; width: fit-content; position: relative; word-break: break-all;
-    }
-    .msg-bar.my { align-self: flex-end; border-left: 5px solid var(--my-msg-border); }
-    .msg-bar.other { align-self: flex-start; border-left: 5px solid var(--other-msg-border); }
-    .msg-header { font-size: 11px; color: var(--subtext); margin-bottom: 4px; display: flex; justify-content: space-between; gap: 10px; }
-    .msg-text { font-size: 14px; }
-    .msg-delete { color: var(--danger); cursor: pointer; margin-left: 8px; font-size: 12px; }
-    .msg-media { max-width: 100%; max-height: 250px; border-radius: 6px; margin-top: 5px; display: block; }
-
-    .chat-input-area { display: flex; gap: 10px; padding-top: 10px; border-top: 1px solid #313244; align-items: center; }
-    .chat-input-area input[type="text"] {
-      flex: 1; padding: 12px; background: var(--card-bg); border: 1px solid #45475a;
-      border-radius: 6px; color: #fff; outline: none;
-    }
-    .chat-input-area .btn { width: auto; padding: 0 20px; height: 43px; margin-top: 0; }
-    .file-btn {
-      background: var(--card-bg); border: 1px solid #45475a; color: var(--subtext);
-      width: 43px; height: 43px; border-radius: 6px; display: flex; align-items: center;
-      justify-content: center; cursor: pointer; font-size: 16px; transition: 0.2s;
-    }
-    .file-btn:hover { color: var(--accent); border-color: var(--accent); }
-
-    .list-item {
-      background: var(--card-bg); padding: 12px; border-radius: 6px;
-      margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
-    }
-    .list-item-btn { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 12px; }
-    .btn-accept { background: #a6e3a1; color: #11111b; }
-    .btn-reject { background: #f38ba8; color: #11111b; }
-    .btn-cancel { background: #f9e2af; color: #11111b; }
-
-    .sub-view { display: none; flex-direction: column; height: 100%; }
-    .sub-view.active { display: flex; }
-    .back-btn { background: none; border: none; color: var(--accent); cursor: pointer; margin-bottom: 10px; font-weight: bold; width: fit-content; }
-  </style>
+        #offline-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; text-align: center; }
+        
+        /* 추가 스타일: 비밀번호 토글 */
+        .pw-container { position: relative; width: 100%; }
+        .pw-toggle { position: absolute; right: 12px; top: 12px; cursor: pointer; font-size: 18px; color: #888; }
+    </style>
 </head>
 <body>
 
-  <div id="offline-overlay">
-    <i class="fa-solid fa-wifi"></i>
-    <h2>인터넷 연결 끊김</h2>
-    <p>네트워크 상태를 확인해주세요.</p>
-  </div>
+    <div id="offline-overlay">📶<br>Wi-Fi 신호가 불안정하거나 연결되지 않았습니다.</div>
 
-  <div id="auth-section">
-    <div class="auth-card">
-      <h2 id="auth-title">로그인</h2>
-      <div class="input-group">
-        <input type="email" id="auth-email" placeholder="이메일">
-      </div>
-      <div class="input-group">
-        <input type="password" id="auth-pw" placeholder="비밀번호">
-        <i class="fa-solid fa-eye pw-toggle" onclick="togglePassword('auth-pw', this)"></i>
-      </div>
-      <button class="btn" id="auth-main-btn" onclick="handleAuth()">로그인</button>
-      <button class="btn btn-secondary" id="auth-sub-btn" onclick="toggleAuthMode()">회원가입으로 이동</button>
-    </div>
-  </div>
-
-  <div id="setup-section" style="display: none;">
-    <div class="auth-card">
-      <h2>초기 프로필 설정</h2>
-      <div class="input-group">
-        <input type="text" id="setup-nick" placeholder="닉네임">
-      </div>
-      <div class="input-group">
-        <input type="text" id="setup-id" placeholder="고유 아이디 (@없이 입력)">
-      </div>
-      <button class="btn" onclick="saveInitialProfile()">설정 완료</button>
-    </div>
-  </div>
-
-  <div id="sidebar">
-    <button class="nav-btn active" onclick="changeTab('chat', this)"><i class="fa-solid fa-comments"></i></button>
-    <button class="nav-btn" onclick="changeTab('friends', this)">
-      <i class="fa-solid fa-user-group"></i>
-      <span id="friend-req-badge" class="badge">0</span>
-    </button>
-    <button class="nav-btn" onclick="changeTab('groups', this)"><i class="fa-solid fa-users"></i></button>
-    <button class="nav-btn" onclick="changeTab('search', this)"><i class="fa-solid fa-magnifying-glass"></i></button>
-    <button class="nav-btn" onclick="changeTab('profile', this)"><i class="fa-solid fa-gear"></i></button>
-  </div>
-
-  <div id="main-content">
-    
-    <!-- 광장 탭 -->
-    <div id="tab-chat" class="section active">
-      <h3>전체 광장</h3>
-      <div id="public-chat-box" class="chat-box"></div>
-      <div class="chat-input-area">
-        <label class="file-btn" for="public-file-input"><i class="fa-solid fa-paperclip"></i></label>
-        <input type="file" id="public-file-input" accept="image/*,video/*" style="display:none;" onchange="uploadFileAndSend('public', this)">
-        <input type="text" id="public-msg-input" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter' && !event.isComposing) sendMsg()">
-        <button class="btn" onclick="sendMsg()">전송</button>
-      </div>
-    </div>
-
-    <!-- 친구 탭 -->
-    <div id="tab-friends" class="section">
-      <div id="friends-main-view">
-        <div id="requests-wrapper" style="display:none; margin-bottom: 20px;">
-          <h4>받은 친구 요청</h4>
-          <div id="requests-list"></div>
-        </div>
-        <h4>친구 목록</h4>
-        <div id="friends-list"></div>
-      </div>
-
-      <div id="dm-view" class="sub-view">
-        <button class="back-btn" onclick="closeDM()"><i class="fa-solid fa-arrow-left"></i> 목록으로</button>
-        <h3 id="dm-target-name"></h3>
-        <div id="dm-chat-box" class="chat-box"></div>
-        <div class="chat-input-area">
-          <label class="file-btn" for="dm-file-input"><i class="fa-solid fa-paperclip"></i></label>
-          <input type="file" id="dm-file-input" accept="image/*,video/*" style="display:none;" onchange="uploadFileAndSend('dm', this)">
-          <input type="text" id="dm-msg-input" placeholder="메시지..." onkeydown="if(event.key==='Enter' && !event.isComposing) sendDMMsg()">
-          <button class="btn" onclick="sendDMMsg()">전송</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 그룹 탭 -->
-    <div id="tab-groups" class="section">
-      <div id="groups-main-view">
-        <button class="btn" style="margin-bottom:15px;" onclick="showCreateGroupModal()">+ 새 그룹 만들기</button>
-        <div id="create-group-modal" style="display:none; background: var(--card-bg); padding:15px; border-radius:6px; margin-bottom:15px;">
-          <input type="text" id="group-name-input" placeholder="그룹 이름" style="width:100%; padding:8px; margin-bottom:10px; background:var(--bg); border:1px solid #45475a; color:#fff; border-radius:4px;">
-          <p style="font-size:12px; color:var(--subtext); margin-bottom:5px;">초대할 친구 선택:</p>
-          <div id="group-friends-select" style="max-height:100px; overflow-y:auto; margin-bottom:10px;"></div>
-          <button class="btn" onclick="createGroup()">생성</button>
-        </div>
-        <h4>내 그룹 채팅방</h4>
-        <div id="groups-list"></div>
-      </div>
-
-      <div id="group-chat-view" class="sub-view">
-        <div style="display:flex; justify-content: space-between; align-items:center;">
-          <button class="back-btn" onclick="closeGroupChat()"><i class="fa-solid fa-arrow-left"></i> 목록으로</button>
-          <button class="btn-reject list-item-btn" onclick="leaveGroup()">그룹 탈퇴</button>
-        </div>
-        <h3 id="group-target-name"></h3>
-        <div id="group-chat-box" class="chat-box"></div>
-        <div class="chat-input-area">
-          <label class="file-btn" for="group-file-input"><i class="fa-solid fa-paperclip"></i></label>
-          <input type="file" id="group-file-input" accept="image/*,video/*" style="display:none;" onchange="uploadFileAndSend('group', this)">
-          <input type="text" id="group-msg-input" placeholder="메시지..." onkeydown="if(event.key==='Enter' && !event.isComposing) sendGroupMsg()">
-          <button class="btn" onclick="sendGroupMsg()">전송</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 검색 탭 -->
-    <div id="tab-search" class="section">
-      <h3>사용자 검색</h3>
-      <div class="input-group" style="margin-top:15px;">
-        <input type="text" id="search-input" placeholder="@아이디 또는 닉네임 검색" onkeyup="searchUsers()">
-      </div>
-      <div id="search-results"></div>
-    </div>
-
-    <!-- 프로필/설정 탭 -->
-    <div id="tab-profile" class="section">
-      <h3>프로필 설정</h3>
-      <div style="margin-top: 20px;">
-        <div class="input-group">
-          <label style="font-size:12px; color:var(--subtext);">닉네임</label>
-          <input type="text" id="profile-nick-input">
-        </div>
-        <button class="btn" onclick="updateNick()">닉네임 변경</button>
-        
-        <div class="input-group" style="margin-top: 20px;">
-          <label style="font-size:12px; color:var(--subtext);">고유 아이디 (7일마다 변경 가능)</label>
-          <input type="text" id="profile-id-input">
-        </div>
-        <button class="btn" onclick="updateID()">아이디 변경</button>
-
-        <button class="btn btn-secondary" style="margin-top: 40px; background:var(--danger); color:#fff;" onclick="logout()">로그아웃</button>
-      </div>
-    </div>
-
-  </div>
-
-  <script>
-const firebaseConfig = {
-      apiKey: "AIzaSyAXvLdG9GkRw40m5goknTrnYo5bXYlUGG4",
-      authDomain: "freechat-84dc6.firebaseapp.com",
-      projectId: "freechat-84dc6",
-      storageBucket: "freechat-84dc6.firebasestorage.app",
-      messagingSenderId: "333935980429",
-      appId: "1:333935980429:web:7a8eb313e44a39d47cd7c4",
-      measurementId: "G-D8XRXXEDKB"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-    const storage = firebase.storage();
-
-    const ADMIN_EMAIL = "danwoo5235@gmail.com";
-
-    let currentUser = null;
-    let currentUserDoc = null;
-    let isAuthModeLogin = true;
-    let activeDMId = null;
-    let activeGroupId = null;
-
-    let publicUnsub = null, dmUnsub = null, groupUnsub = null;
-
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        currentUser = user;
-        const userDoc = await db.collection('users').doc(user.uid).get();
-        if (userDoc.exists) {
-          currentUserDoc = userDoc.data();
-          document.getElementById('auth-section').style.display = 'none';
-          document.getElementById('setup-section').style.display = 'none';
-          initApp();
-        } else {
-          document.getElementById('auth-section').style.display = 'none';
-          document.getElementById('setup-section').style.display = 'flex';
-        }
-      } else {
-        currentUser = null;
-        currentUserDoc = null;
-        document.getElementById('auth-section').style.display = 'flex';
-        document.getElementById('setup-section').style.display = 'none';
-      }
-    });
-
-    function togglePassword(inputId, icon) {
-      const input = document.getElementById(inputId);
-      if(input.type === 'password') {
-        input.type = 'text';
-        icon.classList.replace('fa-eye', 'fa-eye-slash');
-      } else {
-        input.type = 'password';
-        icon.classList.replace('fa-eye-slash', 'fa-eye');
-      }
-    }
-
-    function toggleAuthMode() {
-      isAuthModeLogin = !isAuthModeLogin;
-      document.getElementById('auth-title').innerText = isAuthModeLogin ? '로그인' : '회원가입';
-      document.getElementById('auth-main-btn').innerText = isAuthModeLogin ? '로그인' : '회원가입';
-      document.getElementById('auth-sub-btn').innerText = isAuthModeLogin ? '회원가입으로 이동' : '로그인으로 이동';
-    }
-
-    async function handleAuth() {
-      const email = document.getElementById('auth-email').value.trim();
-      const pw = document.getElementById('auth-pw').value.trim();
-      if(!email || !pw) return alert('이메일과 비밀번호를 입력해주세요.');
-
-      try {
-        if(isAuthModeLogin) {
-          await auth.signInWithEmailAndPassword(email, pw);
-        } else {
-          await auth.createUserWithEmailAndPassword(email, pw);
-        }
-      } catch(err) {
-        alert(err.message);
-      }
-    }
-
-    async function saveInitialProfile() {
-      const nick = document.getElementById('setup-nick').value.trim();
-      const customId = document.getElementById('setup-id').value.trim().replace('@','');
-
-      if(!nick || !customId) return alert('모든 항목을 입력해주세요.');
-
-      const idCheck = await db.collection('users').where('customId', '==', customId).get();
-      if(!idCheck.empty) return alert('이미 사용 중인 아이디입니다.');
-
-      const userData = {
-        uid: currentUser.uid,
-        email: currentUser.email,
-        nick: nick,
-        customId: customId,
-        lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp()
-      };
-
-      await db.collection('users').doc(currentUser.uid).set(userData);
-      currentUserDoc = userData;
-      document.getElementById('setup-section').style.display = 'none';
-      initApp();
-    }
-
-    // event 참조 오류 수정
-    function changeTab(tabName, btnElem) {
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      
-      document.getElementById(`tab-${tabName}`).classList.add('active');
-      if (btnElem) btnElem.classList.add('active');
-
-      if(tabName === 'friends') closeDM();
-      if(tabName === 'groups') closeGroupChat();
-    }
-
-    function initApp() {
-      loadPublicMsgs();
-      listenToRequests();
-      loadFriendsList();
-      loadGroupsList();
-      document.getElementById('profile-nick-input').value = currentUserDoc.nick;
-      document.getElementById('profile-id-input').value = currentUserDoc.customId;
-    }
-
-    function formatFullDate(ts) {
-      if(!ts) return '';
-      const date = ts.toDate ? ts.toDate() : new Date(ts);
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const dd = String(date.getDate()).padStart(2, '0');
-      let hours = date.getHours();
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? '오후' : '오전';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      return `${yyyy}년 ${mm}월 ${dd}일 ${ampm} ${hours}:${minutes}`;
-    }
-
-    function renderMsg(doc, boxId, colName) {
-      const data = doc.data();
-      const isMy = data.uid === currentUser.uid;
-      const isAdmin = currentUser.email === ADMIN_EMAIL;
-      
-      const div = document.createElement('div');
-      div.className = `msg-bar ${isMy ? 'my' : 'other'}`;
-      
-      let deleteBtnHtml = '';
-      if (isMy || isAdmin) {
-        deleteBtnHtml = `<span class="msg-delete" onclick="deleteMsg('${colName}', '${doc.id}')"><i class="fa-solid fa-trash"></i></span>`;
-      }
-
-      let contentHtml = '';
-      if(data.fileUrl) {
-        if(data.fileType === 'image') {
-          contentHtml = `<img src="${data.fileUrl}" class="msg-media" alt="사진">`;
-        } else if(data.fileType === 'video') {
-          contentHtml = `<video src="${data.fileUrl}" controls class="msg-media"></video>`;
-        }
-      } else {
-        contentHtml = `<div class="msg-text">${data.text || ''}</div>`;
-      }
-
-      div.innerHTML = `
-        <div class="msg-header">
-          <span>${data.nick} (@${data.customId})</span>
-          <span>${formatFullDate(data.createdAt)} ${deleteBtnHtml}</span>
-        </div>
-        ${contentHtml}
-      `;
-      return div;
-    }
-
-    async function deleteMsg(colName, docId) {
-      if(confirm('메시지를 삭제하시겠습니까?')) {
-        await db.collection(colName).doc(docId).delete();
-      }
-    }
-
-    async function uploadFileAndSend(type, inputElem) {
-      const file = inputElem.files[0];
-      if(!file) return;
-
-      const fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
-      if(!fileType) return alert('이미지 또는 동영상 파일만 업로드 가능합니다.');
-
-      try {
-        const storageRef = storage.ref(`chat_files/${Date.now()}_${file.name}`);
-        const snapshot = await storageRef.put(file);
-        const downloadURL = await snapshot.ref.getDownloadURL();
-
-        const msgData = {
-          uid: currentUser.uid,
-          nick: currentUserDoc.nick,
-          customId: currentUserDoc.customId,
-          fileUrl: downloadURL,
-          fileType: fileType,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        if(type === 'public') {
-          await db.collection('public_chat').add(msgData);
-        } else if(type === 'dm') {
-          msgData.roomId = activeDMId;
-          await db.collection('dm_chats').add(msgData);
-        } else if(type === 'group') {
-          msgData.groupId = activeGroupId;
-          await db.collection('group_chats').add(msgData);
-        }
-        inputElem.value = '';
-      } catch(err) {
-        alert('파일 업로드 실패: ' + err.message);
-      }
-    }
-
-    function loadPublicMsgs() {
-      if(publicUnsub) publicUnsub();
-      publicUnsub = db.collection('public_chat').orderBy('createdAt', 'asc')
-        .onSnapshot(snapshot => {
-          const box = document.getElementById('public-chat-box');
-          box.innerHTML = '';
-          snapshot.forEach(doc => {
-            box.appendChild(renderMsg(doc, 'public-chat-box', 'public_chat'));
-          });
-          box.scrollTop = box.scrollHeight;
-        });
-    }
-
-    async function sendMsg() {
-      const input = document.getElementById('public-msg-input');
-      const text = input.value.trim();
-      if(!text) return;
-      input.value = '';
-
-      await db.collection('public_chat').add({
-        uid: currentUser.uid,
-        nick: currentUserDoc.nick,
-        customId: currentUserDoc.customId,
-        text: text,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
-
-    async function searchUsers() {
-      const q = document.getElementById('search-input').value.trim();
-      const resContainer = document.getElementById('search-results');
-      resContainer.innerHTML = '';
-      if(!q) return;
-
-      const snapshot = await db.collection('users').get();
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if(data.uid === currentUser.uid) return;
-
-        if(data.nick.includes(q) || data.customId.includes(q)) {
-          const item = document.createElement('div');
-          item.className = 'list-item';
-          item.innerHTML = `
-            <div>
-              <strong>${data.nick}</strong> (@${data.customId})
+    <div id="auth-section" style="position:fixed;width:100%;height:100%;background:var(--bg);z-index:2000;display:flex;justify-content:center;align-items:center;">
+        <div style="background:white;padding:30px;border-radius:20px;width:90%;max-width:320px;text-align:center;">
+            <h2 style="margin-bottom:20px;">FreeChat</h2>
+            <input type="email" id="email" placeholder="이메일" style="width:100%;">
+            <div class="pw-container">
+                <input type="password" id="password" placeholder="비밀번호" style="width:100%;">
+                <span class="pw-toggle" onclick="togglePassword('password', this)">👁️</span>
             </div>
-            <div id="search-btn-${data.uid}">
-              <button class="list-item-btn btn-accept" onclick="sendFriendReq('${data.uid}')">친구 요청</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:var(--accent);" onclick="login()">로그인</button>
+            <button class="btn" style="width:100%; margin-top:8px; background:#666;" onclick="register()">회원가입</button>
+        </div>
+    </div>
+
+    <div id="setup-section" style="position:fixed;width:100%;height:100%;background:var(--bg);z-index:1900;display:none;justify-content:center;align-items:center;">
+        <div style="background:white;padding:30px;border-radius:20px;width:90%;max-width:320px;">
+            <h3 style="margin-top:0;">초기 프로필 설정</h3>
+            <label style="font-size:12px;">닉네임</label>
+            <input type="text" id="setup-nick" placeholder="(한글, 영문자, 숫자, 기호, 이모티콘 사용 가능)" style="width:100%;">
+            <div class="guide">중복 가능, 표시용 / 1~100자</div>
+            <label style="font-size:12px;">아이디(@)</label>
+            <input type="text" id="setup-id" placeholder="(영문자, 숫자, ., _만 사용 가능)" style="width:100%;">
+            <div class="guide">중복 불가능, 식별용 / 4~50자</div>
+            <button class="btn" style="width:100%;" onclick="saveInitialProfile()">가입 완료</button>
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <button class="side-btn active" onclick="changeTab('tab-chat', this)">🌐</button>
+        <button class="side-btn" onclick="changeTab('tab-friends', this)">👥</button>
+        <button class="side-btn" onclick="changeTab('tab-groups', this)">📢</button>
+        <button class="side-btn" onclick="changeTab('tab-search', this)">🔍</button>
+        <button class="side-btn" onclick="changeTab('tab-profile', this)">⚙️</button>
+    </div>
+
+    <div id="main-content">
+        <div id="tab-chat" class="section active">
+            <h3 style="margin-top:0;">광장</h3>
+            <div id="chat-window" class="chat-box"></div>
+            <div style="display:flex; gap:8px; padding-top:10px;">
+                <input type="text" id="chat-input" style="flex:1;" placeholder="메시지를 입력하세요..." onkeypress="if(event.keyCode==13) sendMsg('public_msgs', 'chat-input')">
+                <button class="btn" onclick="sendMsg('public_msgs', 'chat-input')">전송</button>
             </div>
-          `;
-          resContainer.appendChild(item);
-          checkFriendshipStatus(data.uid);
+        </div>
+
+        <div id="tab-friends" class="section">
+            <div id="request-section" style="display:none; background:#fff0f0; padding:15px; border-radius:10px; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0; color:red;">🔔 받은 친구 요청</h4>
+                <div id="request-list"></div>
+            </div>
+            <div id="friends-list-view">
+                <h3 style="margin-top:0;">친구 목록</h3>
+                <div id="friends-list"></div>
+            </div>
+            <div id="dm-view" style="display:none; height:100%; flex-direction:column;">
+                <button onclick="backToFriends()" style="border:none;background:none;color:var(--accent);padding:10px 0;text-align:left;font-weight:bold;">← 목록으로</button>
+                <div id="dm-chat" class="chat-box"></div>
+                <div style="display:flex; gap:8px; padding-top:10px;">
+                    <input type="text" id="dm-input" style="flex:1;" onkeypress="if(event.keyCode==13) sendDMMsg()">
+                    <button class="btn" onclick="sendDMMsg()">전송</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-groups" class="section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="margin:0;">그룹 채팅</h3>
+                <button class="btn" style="font-size:12px;" onclick="toggleGroupCreate()">+ 그룹 생성</button>
+            </div>
+            <div id="group-create-ui" style="display:none; background:#eee; padding:15px; border-radius:10px; margin-bottom:15px;">
+                <input type="text" id="group-name-input" placeholder="그룹 이름" style="width:100%;">
+                <p style="font-size:12px; margin:10px 0 5px;">초대할 친구 선택:</p>
+                <div id="group-friend-selector" style="max-height:120px; overflow-y:auto; background:white; padding:10px; border-radius:8px;"></div>
+                <button class="btn" style="width:100%; margin-top:10px;" onclick="createGroup()">생성</button>
+            </div>
+            <div id="groups-list"></div>
+
+            <div id="group-chat-view" style="display:none; height:100%; flex-direction:column; position:absolute; top:0; left:0; width:100%; background:white; padding:20px; z-index:200;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <button onclick="document.getElementById('group-chat-view').style.display='none'" style="border:none;background:none;color:var(--accent);font-weight:bold;">←</button>
+                    <div style="text-align:center;">
+                        <h4 id="group-chat-title" style="margin:0;"></h4>
+                        <div id="group-member-info" style="font-size:11px; color:#888; cursor:pointer; text-decoration:underline; margin-top:4px;" onclick="showGroupMembers()"></div>
+                    </div>
+                    <button onclick="leaveGroup()" style="border:none;background:none;color:red;font-weight:bold;font-size:13px;">나가기</button>
+                </div>
+                <div id="group-chat-window" class="chat-box" style="margin-top:15px;"></div>
+                <div style="display:flex; gap:8px; padding-top:10px;">
+                    <input type="text" id="group-input" style="flex:1;" onkeypress="if(event.keyCode==13) sendGroupMsg()">
+                    <button class="btn" onclick="sendGroupMsg()">전송</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-search" class="section">
+            <h3 style="margin-top:0;">사용자 검색</h3>
+            <input type="text" id="search-input" placeholder="아이디로 검색..." oninput="searchUser()" style="width:100%;">
+            <div id="search-result"></div>
+        </div>
+
+        <div id="tab-profile" class="section">
+            <h3 style="margin-top:0;">프로필 설정</h3>
+            <label style="font-size:13px; font-weight:bold;">닉네임 변경</label>
+            <input type="text" id="edit-nick" style="width:100%;">
+            <div class="guide">중복 가능, 표시용 / 1~100자</div>
+            <button class="btn" onclick="updateNick()">닉네임 저장</button>
+            <hr style="margin:25px 0; border:0; border-top:1px solid #eee;">
+            <label style="font-size:13px; font-weight:bold;">아이디(@) 변경</label>
+            <input type="text" id="edit-id" style="width:100%;">
+            <div class="guide">중복 불가능, 식별용 / 4~50자<br>아이디는 7일마다 1번 변경 가능합니다.</div>
+            <button class="btn" onclick="updateID()">아이디 저장</button>
+            <div style="margin-top:auto; text-align:center; padding-bottom:10px;">
+                <div id="my-email-display" style="font-size:12px; color:#bbb; margin-bottom:8px;"></div>
+                <button class="btn" style="width:100%; background:#bbb;" onclick="auth.signOut(); location.reload();">로그아웃</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Firebase 설정 ---
+        const firebaseConfig = { apiKey: "AIzaSyAXvLdG9GkRw40m5goknTrnYo5bXYlUGG4", authDomain: "freechat-84dc6.firebaseapp.com", projectId: "freechat-84dc6", storageBucket: "freechat-84dc6.firebasestorage.app", messagingSenderId: "333935980429", appId: "1:333935980429:web:7a8eb313e44a39d47cd7c4" };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); const db = firebase.firestore();
+        let my = null; let currentDMId = null; let currentGroupId = null; let requestTimers = {};
+
+        // --- 비밀번호 토글 함수 ---
+        function togglePassword(id, el) {
+            const input = document.getElementById(id);
+            if (input.type === "password") {
+                input.type = "text"; el.innerText = "🔒";
+            } else {
+                input.type = "password"; el.innerText = "👁️";
+            }
         }
-      });
-    }
 
-    async function checkFriendshipStatus(targetUid) {
-      const btnDiv = document.getElementById(`search-btn-${targetUid}`);
-      if(!btnDiv) return;
-
-      const friendDoc = await db.collection('users').doc(currentUser.uid).collection('friends').doc(targetUid).get();
-      if(friendDoc.exists) {
-        btnDiv.innerHTML = `<span style="font-size:12px; color:var(--subtext);">친구임</span>`;
-        return;
-      }
-
-      const reqSent = await db.collection('friend_requests')
-        .where('from', '==', currentUser.uid).where('to', '==', targetUid).get();
-      if(!reqSent.empty) {
-        const reqId = reqSent.docs[0].id;
-        btnDiv.innerHTML = `<button class="list-item-btn btn-cancel" onclick="cancelFriendReq('${reqId}', '${targetUid}')">요청 취소</button>`;
-        return;
-      }
-
-      const reqReceived = await db.collection('friend_requests')
-        .where('from', '==', targetUid).where('to', '==', currentUser.uid).get();
-      if(!reqReceived.empty) {
-        btnDiv.innerHTML = `<span style="font-size:12px; color:var(--accent);">요청 받음</span>`;
-      }
-    }
-
-    async function sendFriendReq(targetUid) {
-      await db.collection('friend_requests').add({
-        from: currentUser.uid,
-        to: targetUid,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      searchUsers();
-    }
-
-    async function cancelFriendReq(reqId, targetUid) {
-      await db.collection('friend_requests').doc(reqId).delete();
-      searchUsers();
-    }
-
-    function listenToRequests() {
-      db.collection('friend_requests').where('to', '==', currentUser.uid)
-        .onSnapshot(async snapshot => {
-          const badge = document.getElementById('friend-req-badge');
-          const wrapper = document.getElementById('requests-wrapper');
-          const list = document.getElementById('requests-list');
-          
-          if(snapshot.empty) {
-            badge.style.display = 'none';
-            wrapper.style.display = 'none';
-            return;
-          }
-
-          badge.innerText = snapshot.size;
-          badge.style.display = 'inline-block';
-          wrapper.style.display = 'block';
-          list.innerHTML = '';
-
-          for(let doc of snapshot.docs) {
-            const reqData = doc.data();
-            const senderDoc = await db.collection('users').doc(reqData.from).get();
-            const sender = senderDoc.data();
-
-            const item = document.createElement('div');
-            item.className = 'list-item';
-            item.innerHTML = `
-              <div><strong>${sender.nick}</strong> (@${sender.customId})</div>
-              <div>
-                <button class="list-item-btn btn-accept" onclick="acceptFriend('${doc.id}', '${sender.uid}')">수락</button>
-                <button class="list-item-btn btn-reject" onclick="rejectFriend('${doc.id}')">거절</button>
-              </div>
-            `;
-            list.appendChild(item);
-          }
-        });
-    }
-
-    async function acceptFriend(reqId, senderUid) {
-      await db.collection('users').doc(currentUser.uid).collection('friends').doc(senderUid).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      await db.collection('users').doc(senderUid).collection('friends').doc(currentUser.uid).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      await db.collection('friend_requests').doc(reqId).delete();
-      loadFriendsList();
-    }
-
-    async function rejectFriend(reqId) {
-      await db.collection('friend_requests').doc(reqId).delete();
-    }
-
-    function loadFriendsList() {
-      db.collection('users').doc(currentUser.uid).collection('friends')
-        .onSnapshot(async snapshot => {
-          const list = document.getElementById('friends-list');
-          list.innerHTML = '';
-
-          for(let doc of snapshot.docs) {
-            const friendUid = doc.id;
-            const friendDoc = await db.collection('users').doc(friendUid).get();
-            if(!friendDoc.exists) continue;
-            const friend = friendDoc.data();
-
-            const item = document.createElement('div');
-            item.className = 'list-item';
-            item.style.cursor = 'pointer';
-            item.onclick = () => openDM(friendUid, friend.nick);
-            item.innerHTML = `<div><strong>${friend.nick}</strong> (@${friend.customId})</div>`;
-            list.appendChild(item);
-          }
-        });
-    }
-
-    function openDM(friendUid, friendNick) {
-      activeDMId = [currentUser.uid, friendUid].sort().join('_');
-      document.getElementById('friends-main-view').style.display = 'none';
-      document.getElementById('dm-view').classList.add('active');
-      document.getElementById('dm-target-name').innerText = friendNick;
-
-      if(dmUnsub) dmUnsub();
-      dmUnsub = db.collection('dm_chats')
-        .where('roomId', '==', activeDMId)
-        .orderBy('createdAt', 'asc')
-        .onSnapshot(snapshot => {
-          const box = document.getElementById('dm-chat-box');
-          box.innerHTML = '';
-          snapshot.forEach(doc => {
-            box.appendChild(renderMsg(doc, 'dm-chat-box', 'dm_chats'));
-          });
-          box.scrollTop = box.scrollHeight;
-        });
-    }
-
-    function closeDM() {
-      if(dmUnsub) dmUnsub();
-      activeDMId = null;
-      document.getElementById('dm-view').classList.remove('active');
-      document.getElementById('friends-main-view').style.display = 'block';
-    }
-
-    async function sendDMMsg() {
-      const input = document.getElementById('dm-msg-input');
-      const text = input.value.trim();
-      if(!text || !activeDMId) return;
-      input.value = '';
-
-      await db.collection('dm_chats').add({
-        roomId: activeDMId,
-        uid: currentUser.uid,
-        nick: currentUserDoc.nick,
-        customId: currentUserDoc.customId,
-        text: text,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
-
-    async function showCreateGroupModal() {
-      const modal = document.getElementById('create-group-modal');
-      const selectDiv = document.getElementById('group-friends-select');
-      modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
-      selectDiv.innerHTML = '';
-
-      const snapshot = await db.collection('users').doc(currentUser.uid).collection('friends').get();
-      for(let doc of snapshot.docs) {
-        const friendDoc = await db.collection('users').doc(doc.id).get();
-        const friend = friendDoc.data();
-        selectDiv.innerHTML += `
-          <div>
-            <input type="checkbox" value="${friend.uid}" class="group-friend-checkbox"> ${friend.nick} (@${friend.customId})
-          </div>
-        `;
-      }
-    }
-
-    async function createGroup() {
-      const name = document.getElementById('group-name-input').value.trim();
-      if(!name) return alert('그룹 이름을 입력하세요.');
-
-      const checkboxes = document.querySelectorAll('.group-friend-checkbox:checked');
-      const members = [currentUser.uid];
-      checkboxes.forEach(cb => members.push(cb.value));
-
-      if(members.length < 2) return alert('최소 한 명 이상의 친구를 선택하세요.');
-
-      await db.collection('groups').add({
-        name: name,
-        members: members,
-        createdBy: currentUser.uid,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      document.getElementById('group-name-input').value = '';
-      document.getElementById('create-group-modal').style.display = 'none';
-    }
-
-    // Firestore array-contains 구문 수정
-    function loadGroupsList() {
-      db.collection('groups').where('members', 'array-contains', currentUser.uid)
-        .onSnapshot(snapshot => {
-          const list = document.getElementById('groups-list');
-          list.innerHTML = '';
-          snapshot.forEach(doc => {
-            const group = doc.data();
-            const item = document.createElement('div');
-            item.className = 'list-item';
-            item.style.cursor = 'pointer';
-            item.onclick = () => openGroupChat(doc.id, group.name);
-            item.innerHTML = `<div><strong>${group.name}</strong> (${group.members.length}명)</div>`;
-            list.appendChild(item);
-          });
-        });
-    }
-
-    function openGroupChat(groupId, groupName) {
-      activeGroupId = groupId;
-      document.getElementById('groups-main-view').style.display = 'none';
-      document.getElementById('group-chat-view').classList.add('active');
-      document.getElementById('group-target-name').innerText = groupName;
-
-      if(groupUnsub) groupUnsub();
-      groupUnsub = db.collection('group_chats')
-        .where('groupId', '==', activeGroupId)
-        .orderBy('createdAt', 'asc')
-        .onSnapshot(snapshot => {
-          const box = document.getElementById('group-chat-box');
-          box.innerHTML = '';
-          snapshot.forEach(doc => {
-            box.appendChild(renderMsg(doc, 'group-chat-box', 'group_chats'));
-          });
-          box.scrollTop = box.scrollHeight;
-        });
-    }
-
-    function closeGroupChat() {
-      if(groupUnsub) groupUnsub();
-      activeGroupId = null;
-      document.getElementById('group-chat-view').classList.remove('active');
-      document.getElementById('groups-main-view').style.display = 'block';
-    }
-
-    async function sendGroupMsg() {
-      const input = document.getElementById('group-msg-input');
-      const text = input.value.trim();
-      if(!text || !activeGroupId) return;
-      input.value = '';
-
-      await db.collection('group_chats').add({
-        groupId: activeGroupId,
-        uid: currentUser.uid,
-        nick: currentUserDoc.nick,
-        customId: currentUserDoc.customId,
-        text: text,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
-
-    async function leaveGroup() {
-      if(!activeGroupId || !confirm('정말 이 그룹을 탈퇴하시겠습니까?')) return;
-      await db.collection('groups').doc(activeGroupId).update({
-        members: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
-      });
-      closeGroupChat();
-    }
-
-    async function updateNick() {
-      const newNick = document.getElementById('profile-nick-input').value.trim();
-      if(!newNick) return alert('닉네임을 입력하세요.');
-
-      await db.collection('users').doc(currentUser.uid).update({ nick: newNick });
-      currentUserDoc.nick = newNick;
-      alert('닉네임이 변경되었습니다.');
-    }
-
-    async function updateID() {
-      const newId = document.getElementById('profile-id-input').value.trim().replace('@','');
-      if(!newId) return alert('아이디를 입력하세요.');
-
-      if(currentUserDoc.lastIdUpdate) {
-        const lastUpdate = currentUserDoc.lastIdUpdate.toDate();
-        const now = new Date();
-        const diffDays = (now - lastUpdate) / (1000 * 60 * 60 * 24);
-        if(diffDays < 7) {
-          return alert(`아이디는 7일에 한 번만 변경 가능합니다. (남은 일수: ${Math.ceil(7 - diffDays)}일)`);
+        function formatFullDate(ts) {
+            if(!ts) return "";
+            const d = ts.toDate();
+            const year = d.getFullYear(); const month = d.getMonth() + 1; const date = d.getDate();
+            const ampm = d.getHours() >= 12 ? "오후" : "오전";
+            const h = d.getHours() % 12 || 12; const m = String(d.getMinutes()).padStart(2, '0');
+            return `${year}년 ${month}월 ${date}일 ${ampm} ${h}:${m}`;
         }
-      }
 
-      const idCheck = await db.collection('users').where('customId', '==', newId).get();
-      if(!idCheck.empty) return alert('이미 사용 중인 아이디입니다.');
+        // --- 삭제 함수 추가 ---
+        async function deleteMsg(col, docId, isDM = false) {
+            if(!confirm("메시지를 삭제하시겠습니까?")) return;
+            try {
+                if(isDM) {
+                    const dmId = [my.uid, currentDMId].sort().join("_");
+                    await db.collection("dms").doc(dmId).collection("messages").doc(docId).delete();
+                } else if(col === 'group') {
+                    await db.collection("groups").doc(currentGroupId).collection("messages").doc(docId).delete();
+                } else {
+                    await db.collection("public_msgs").doc(docId).delete();
+                }
+            } catch(e) { alert("삭제 권한이 없거나 오류가 발생했습니다."); }
+        }
 
-      await db.collection('users').doc(currentUser.uid).update({
-        customId: newId,
-        lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      currentUserDoc.customId = newId;
-      alert('아이디가 변경되었습니다.');
-    }
+        // --- 로그인 함수 ---
+        async function login() {
+            const e = document.getElementById('email').value.trim(); 
+            const p = document.getElementById('password').value;
+            if(!e || !p) return alert("이메일과 비밀번호를 입력해주세요.");
+            try { 
+                await auth.signInWithEmailAndPassword(e, p); 
+            } catch (err) { 
+                if(err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+                    alert("로그인 실패: 이메일 또는 비밀번호가 틀렸습니다.");
+                } else {
+                    alert("로그인 에러: " + err.message);
+                }
+            }
+        }
 
-    function logout() {
-      auth.signOut();
-    }
+        // --- 회원가입 함수 ---
+        async function register() {
+            const e = document.getElementById('email').value.trim(); 
+            const p = document.getElementById('password').value;
+            if(!e || !p) return alert("가입할 이메일과 비밀번호를 입력해주세요.");
+            if(p.length < 6) return alert("비밀번호는 최소 6자리 이상이어야 합니다.");
+            try { 
+                await auth.createUserWithEmailAndPassword(e, p);
+                alert("회원가입이 완료되었습니다! 초기 프로필 설정을 진행합니다.");
+            } catch (err) { 
+                if(err.code === 'auth/email-already-in-use') {
+                    alert("이미 가입된 이메일입니다.");
+                } else {
+                    alert("가입 실패: " + err.message);
+                }
+            }
+        }
 
-    window.addEventListener('online', () => {
-      document.getElementById('offline-overlay').style.display = 'none';
-    });
-    window.addEventListener('offline', () => {
-      document.getElementById('offline-overlay').style.display = 'flex';
-    });
-  </script>
+        auth.onAuthStateChanged(async user => {
+            if(user) {
+                const doc = await db.collection("users").doc(user.uid).get();
+                if(doc.exists) {
+                    my = doc.data(); my.uid = user.uid;
+                    document.getElementById('auth-section').style.display='none';
+                    document.getElementById('sidebar').style.display='flex';
+                    document.getElementById('main-content').style.display='flex';
+                    document.getElementById('edit-nick').value = my.nickname;
+                    document.getElementById('edit-id').value = my.userId;
+                    document.getElementById('my-email-display').innerText = user.email;
+                    loadPublicMsgs(); listenToRequests(); loadGroups(); searchUser();
+                } else {
+                    document.getElementById('auth-section').style.display='none';
+                    document.getElementById('setup-section').style.display='flex';
+                }
+            }
+        });
+
+        async function saveInitialProfile() {
+            const n = document.getElementById('setup-nick').value; const i = document.getElementById('setup-id').value.toLowerCase().trim();
+            if(n.length < 1 || n.length > 100) return alert("닉네임은 1~100자 사이로 입력해주세요.");
+            if(i.length < 4 || i.length > 50) return alert("아이디는 4~50자 사이로 입력해주세요.");
+            const idRegex = /^[a-z0-9._]+$/;
+            if(!idRegex.test(i)) return alert("아이디는 영문자, 숫자, 마침표(.), 밑줄(_)만 사용 가능합니다.");
+            const check = await db.collection("users").where("userId", "==", i).get();
+            if(!check.empty) return alert("이미 존재하는 아이디입니다.");
+            await db.collection("users").doc(auth.currentUser.uid).set({ nickname: n, userId: i, friends: [], requests: [], sentRequests: [], lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() });
+            location.reload();
+        }
+
+        function renderMsg(doc, colType) {
+            const m = doc.data();
+            const isMe = m.senderId === my.uid;
+            // 특정 사용자(danwoo5235@gmail.com)인지 확인
+            const isAdmin = auth.currentUser && auth.currentUser.email === 'danwoo5235@gmail.com';
+
+            if(m.system) return `<div style="text-align:center; font-size:11px; color:#888; margin:10px 0; background:#f0f0f0; padding:4px; border-radius:4px;">${m.text}</div>`;
+            
+            let delBtn = "";
+            // 본인이거나 관리자(isAdmin)일 경우 삭제 버튼 노출
+            if(isMe || isAdmin) {
+                if(colType === 'dm') delBtn = `<button class="del-btn" onclick="deleteMsg('', '${doc.id}', true)">삭제</button>`;
+                else if(colType === 'group') delBtn = `<button class="del-btn" onclick="deleteMsg('group', '${doc.id}')">삭제</button>`;
+                else delBtn = `<button class="del-btn" onclick="deleteMsg('public_msgs', '${doc.id}')">삭제</button>`;
+            }
+
+            return `
+            <div class="msg-bar ${isMe ? 'me' : 'other'}">
+                ${delBtn}
+                <div class="msg-header">
+                    <span class="msg-nick">${m.nickname}(@${m.userId})</span>
+                    <span class="msg-date">${formatFullDate(m.timestamp)}</span>
+                </div>
+                <div class="msg-content">${m.text}</div>
+            </div>`;
+        }
+
+        function changeTab(t, b) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(t).classList.add('active');
+            document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
+            b.classList.add('active');
+            if(t === 'tab-friends') loadFriends();
+            if(t === 'tab-search') searchUser();
+        }
+
+        async function sendMsg(col, inputId) {
+            const input = document.getElementById(inputId);
+            const text = input.value.trim(); if(!text) return;
+            await db.collection(col).add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            input.value = "";
+        }
+        function loadPublicMsgs() {
+            db.collection("public_msgs").orderBy("timestamp").onSnapshot(snap => {
+                const box = document.getElementById('chat-window');
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'public')).join("");
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        function listenToRequests() {
+            db.collection("users").doc(my.uid).onSnapshot(doc => {
+                const d = doc.data();
+                if(d.requests && d.requests.length > 0) {
+                    document.getElementById('request-section').style.display='block';
+                    document.getElementById('request-list').innerHTML = d.requests.map(r => `
+                        <div class="list-item"><span>${r.nick}(@${r.id})</span>
+                        <div><button class="btn" style="padding:5px 10px; font-size:12px; background:var(--accent);" onclick="acceptFriend('${r.uid}','${r.nick}','${r.id}')">수락</button>
+                        <button class="btn" style="padding:5px 10px; font-size:12px; background:#999;" onclick="rejectFriend('${r.uid}','${r.nick}','${r.id}')">거절</button></div></div>
+                    `).join("");
+                } else document.getElementById('request-section').style.display='none';
+            });
+        }
+        async function acceptFriend(uid, nick, id) {
+            await db.collection("users").doc(my.uid).update({ friends: firebase.firestore.FieldValue.arrayUnion({ uid, nick, id }), requests: firebase.firestore.FieldValue.arrayRemove({ uid, nick, id }) });
+            await db.collection("users").doc(uid).update({ friends: firebase.firestore.FieldValue.arrayUnion({ uid: my.uid, nick: my.nickname, id: my.userId }), sentRequests: firebase.firestore.FieldValue.arrayRemove(my.uid) });
+            alert("친구 수락 완료!");
+        }
+        async function rejectFriend(uid, nick, id) {
+            await db.collection("users").doc(my.uid).update({ requests: firebase.firestore.FieldValue.arrayRemove({ uid, nick, id }) });
+        }
+        async function loadFriends() {
+            const d = await db.collection("users").doc(my.uid).get();
+            my.friends = d.data().friends || [];
+            const list = document.getElementById('friends-list'); list.innerHTML = "";
+            my.friends.forEach(f => {
+                list.innerHTML += `<div class="list-item"><span><b>${f.nick}</b>(@${f.id})</span><button class="btn" onclick="openDM('${f.uid}','${f.nick}')">채팅</button></div>`;
+            });
+        }
+        function openDM(uid, nick) {
+            currentDMId = uid;
+            document.getElementById('friends-list-view').style.display='none';
+            document.getElementById('dm-view').style.display='flex';
+            const dmId = [my.uid, uid].sort().join("_");
+            db.collection("dms").doc(dmId).collection("messages").orderBy("timestamp").onSnapshot(snap => {
+                const box = document.getElementById('dm-chat');
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'dm')).join("");
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+        function backToFriends() { document.getElementById('friends-list-view').style.display='block'; document.getElementById('dm-view').style.display='none'; }
+        async function sendDMMsg() {
+            const input = document.getElementById('dm-input'); const text = input.value.trim(); if(!text) return;
+            const dmId = [my.uid, currentDMId].sort().join("_");
+            await db.collection("dms").doc(dmId).collection("messages").add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            input.value = "";
+        }
+
+        function toggleGroupCreate() {
+            const ui = document.getElementById('group-create-ui');
+            ui.style.display = ui.style.display==='none'?'block':'none';
+            if(ui.style.display==='block') {
+                const sel = document.getElementById('group-friend-selector'); sel.innerHTML = "";
+                my.friends.forEach(f => { sel.innerHTML += `<div><input type="checkbox" class="g-member-chk" value="${f.uid}" data-nick="${f.nick}" data-id="${f.id}"> ${f.nick}(@${f.id})</div>`; });
+            }
+        }
+        async function createGroup() {
+            const name = document.getElementById('group-name-input').value.trim();
+            const chks = document.querySelectorAll('.g-member-chk:checked');
+            if(!name || chks.length === 0) return alert("그룹 이름과 멤버를 선택하세요.");
+            let members = [my.uid]; chks.forEach(c => members.push(c.value));
+            const newGroup = await db.collection("groups").add({ name, members, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+            await db.collection("groups").doc(newGroup.id).collection("messages").add({ system: true, text: `${my.nickname}님이 그룹을 생성했습니다.`, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            document.getElementById('group-create-ui').style.display='none';
+        }
+        function loadGroups() {
+            db.collection("groups").where("members", "array-contains", my.uid).onSnapshot(snap => {
+                const list = document.getElementById('groups-list'); list.innerHTML = "";
+                snap.forEach(doc => {
+                    const g = doc.data();
+                    list.innerHTML += `<div class="list-item" onclick="openGroupChat('${doc.id}', '${g.name}')"><span>📢 ${g.name} <small style="color:#aaa;">(${g.members.length})</small></span><small>입장 ></small></div>`;
+                });
+            });
+        }
+        function openGroupChat(id, name) {
+            currentGroupId = id;
+            document.getElementById('group-chat-view').style.display='flex';
+            document.getElementById('group-chat-title').innerText = name;
+            db.collection("groups").doc(id).onSnapshot(doc => {
+                if(doc.exists) document.getElementById('group-member-info').innerText = `멤버 ${doc.data().members.length}명 보기`;
+            });
+            db.collection("groups").doc(id).collection("messages").orderBy("timestamp").onSnapshot(snap => {
+                const box = document.getElementById('group-chat-window');
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'group')).join("");
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+        async function showGroupMembers() {
+            const doc = await db.collection("groups").doc(currentGroupId).get();
+            let names = [];
+            for(let uid of doc.data().members) {
+                const u = await db.collection("users").doc(uid).get();
+                if(u.exists) names.push(`${u.data().nickname}(@${u.data().userId})`);
+            }
+            alert("참여 멤버:\n" + names.join("\n"));
+        }
+        async function leaveGroup() {
+            if(!confirm("그룹에서 나가시겠습니까?")) return;
+            await db.collection("groups").doc(currentGroupId).update({ members: firebase.firestore.FieldValue.arrayRemove(my.uid) });
+            await db.collection("groups").doc(currentGroupId).collection("messages").add({ system:true, text:`${my.nickname}님이 나갔습니다.`, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            document.getElementById('group-chat-view').style.display='none';
+        }
+        async function sendGroupMsg() {
+            const input = document.getElementById('group-input'); const text = input.value.trim(); if(!text) return;
+            await db.collection("groups").doc(currentGroupId).collection("messages").add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            input.value = "";
+        }
+
+        async function searchUser() {
+            const sid = document.getElementById('search-input').value.toLowerCase().trim();
+            const snap = await db.collection("users").get();
+            const res = document.getElementById('search-result'); res.innerHTML = "";
+            snap.forEach(doc => {
+                const u = doc.data(); if(doc.id === my.uid) return;
+                if(sid === "" || u.userId.includes(sid) || u.nickname.toLowerCase().includes(sid)) {
+                    const isFriend = my.friends && my.friends.some(f => f.uid === doc.id);
+                    const isPending = my.sentRequests && my.sentRequests.includes(doc.id);
+                    res.innerHTML += `<div class="list-item">
+                        <span>${u.nickname}(@${u.userId})</span>
+                        ${isFriend ? '<b style="color:var(--accent);">친구</b>' : `
+                            <button class="btn" id="btn-${doc.id}" onclick="handleFriendReq('${doc.id}','${u.nickname}','${u.userId}')" style="${isPending?'background:#999':''}">
+                                ${isPending ? '신청됨' : '요청'}
+                            </button>
+                        `}
+                    </div>`;
+                }
+            });
+        }
+        async function handleFriendReq(tid, nick, id) {
+            const btn = document.getElementById(`btn-${tid}`);
+            if(btn.innerText === '요청') {
+                await db.collection("users").doc(tid).update({ requests: firebase.firestore.FieldValue.arrayUnion({ uid: my.uid, nick: my.nickname, id: my.userId }) });
+                await db.collection("users").doc(my.uid).update({ sentRequests: firebase.firestore.FieldValue.arrayUnion(tid) });
+                my.sentRequests.push(tid); btn.innerText = '신청됨'; btn.style.background = "#999"; requestTimers[tid] = Date.now();
+            } else {
+                const diff = (Date.now() - (requestTimers[tid]||0))/1000;
+                if(diff < 5) return alert(`${Math.ceil(5-diff)}초 후 취소 가능`);
+                await db.collection("users").doc(tid).update({ requests: firebase.firestore.FieldValue.arrayRemove({ uid: my.uid, nick: my.nickname, id: my.userId }) });
+                await db.collection("users").doc(my.uid).update({ sentRequests: firebase.firestore.FieldValue.arrayRemove(tid) });
+                my.sentRequests = my.sentRequests.filter(i => i !== tid); btn.innerText = '요청'; btn.style.background = "var(--dark)";
+            }
+        }
+
+        async function updateNick() {
+            const n = document.getElementById('edit-nick').value; if(n.length<1 || n.length>100) return alert("1~100자");
+            await db.collection("users").doc(my.uid).update({ nickname: n }); alert("저장되었습니다."); location.reload();
+        }
+        async function updateID() {
+            const nid = document.getElementById('edit-id').value.toLowerCase().trim();
+            if(nid.length<4 || nid.length>50) return alert("4~50자");
+            const lastUpdate = my.lastIdUpdate?.toDate ? my.lastIdUpdate.toDate() : new Date(0);
+            if((new Date() - lastUpdate) / (1000*60*60*24) < 7) return alert("7일 후에 변경 가능합니다.");
+            const check = await db.collection("users").where("userId", "==", nid).get();
+            if(!check.empty) return alert("중복된 아이디입니다.");
+            await db.collection("users").doc(my.uid).update({ userId: nid, lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() });
+            alert("변경되었습니다."); location.reload();
+        }
+
+        window.addEventListener('online', () => document.getElementById('offline-overlay').style.display='none');
+        window.addEventListener('offline', () => document.getElementById('offline-overlay').style.display='flex');
+    </script>
 </body>
 </html>
