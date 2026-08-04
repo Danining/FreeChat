@@ -213,77 +213,45 @@
         async function login() {
             const e = document.getElementById('email').value.trim(); 
             const p = document.getElementById('password').value;
-            if(!e || !p) return alert("이메일과 비밀번호를 입력해주세요.");
-            try { 
-                await auth.signInWithEmailAndPassword(e, p); 
-            } catch (err) { 
-                if(err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-                    alert("로그인 실패: 이메일 또는 비밀번호가 틀렸습니다.");
-                } else {
-                    alert("로그인 에러: " + err.message);
-                }
-            }
-        }
-
-        // --- 회원가입 함수 ---
-        async function register() {
-            const e = document.getElementById('email').value.trim(); 
-            const p = document.getElementById('password').value;
-            if(!e || !p) return alert("가입할 이메일과 비밀번호를 입력해주세요.");
-            if(p.length < 6) return alert("비밀번호는 최소 6자리 이상이어야 합니다.");
-            try { 
-                await auth.createUserWithEmailAndPassword(e, p);
-                alert("회원가입이 완료되었습니다! 초기 프로필 설정을 진행합니다.");
-            } catch (err) { 
-                if(err.code === 'auth/email-already-in-use') {
-                    alert("이미 가입된 이메일입니다.");
-                } else {
-                    alert("가입 실패: " + err.message);
-                }
-            }
-        }
-
-        auth.onAuthStateChanged(async user => {
-            if(user) {
-                const doc = await db.collection("users").doc(user.uid).get();
-                if(doc.exists) {
-                    my = doc.data(); my.uid = user.uid;
-                    document.getElementById('auth-section').style.display='none';
-                    document.getElementById('sidebar').style.display='flex';
-                    document.getElementById('main-content').style.display='flex';
-                    document.getElementById('edit-nick').value = my.nickname;
-                    document.getElementById('edit-id').value = my.userId;
-                    document.getElementById('my-email-display').innerText = user.email;
-                    loadPublicMsgs(); listenToRequests(); loadGroups(); searchUser();
-                } else {
-                    document.getElementById('auth-section').style.display='none';
-                    document.getElementById('setup-section').style.display='flex';
-                }
-            }
-        });
-
-        async function saveInitialProfile() {
-            const n = document.getElementById('setup-nick').value; const i = document.getElementById('setup-id').value.toLowerCase().trim();
+async function saveInitialProfile() {
+            const n = document.getElementById('setup-nick').value.trim(); 
+            const i = document.getElementById('setup-id').value.toLowerCase().trim();
             if(n.length < 1 || n.length > 100) return alert("닉네임은 1~100자 사이로 입력해주세요.");
             if(i.length < 4 || i.length > 50) return alert("아이디는 4~50자 사이로 입력해주세요.");
             const idRegex = /^[a-z0-9._]+$/;
             if(!idRegex.test(i)) return alert("아이디는 영문자, 숫자, 마침표(.), 밑줄(_)만 사용 가능합니다.");
             const check = await db.collection("users").where("userId", "==", i).get();
             if(!check.empty) return alert("이미 존재하는 아이디입니다.");
-            await db.collection("users").doc(auth.currentUser.uid).set({ nickname: n, userId: i, friends: [], requests: [], sentRequests: [], lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() });
-            location.reload();
+            
+            const initialData = { 
+                nickname: n, 
+                userId: i, 
+                friends: [], 
+                requests: [], 
+                sentRequests: [], 
+                lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() 
+            };
+            await db.collection("users").doc(auth.currentUser.uid).set(initialData);
+            
+            my = initialData;
+            my.uid = auth.currentUser.uid;
+            document.getElementById('setup-section').style.display = 'none';
+            document.getElementById('sidebar').style.display = 'flex';
+            document.getElementById('main-content').style.display = 'flex';
+            document.getElementById('edit-nick').value = my.nickname;
+            document.getElementById('edit-id').value = my.userId;
+            document.getElementById('my-email-display').innerText = auth.currentUser.email;
+            loadPublicMsgs(); listenToRequests(); loadGroups(); searchUser();
         }
 
         function renderMsg(doc, colType) {
             const m = doc.data();
             const isMe = m.senderId === my.uid;
-            // 특정 사용자(danwoo5235@gmail.com)인지 확인
             const isAdmin = auth.currentUser && auth.currentUser.email === 'danwoo5235@gmail.com';
 
             if(m.system) return `<div style="text-align:center; font-size:11px; color:#888; margin:10px 0; background:#f0f0f0; padding:4px; border-radius:4px;">${m.text}</div>`;
             
             let delBtn = "";
-            // 본인이거나 관리자(isAdmin)일 경우 삭제 버튼 노출
             if(isMe || isAdmin) {
                 if(colType === 'dm') delBtn = `<button class="del-btn" onclick="deleteMsg('', '${doc.id}', true)">삭제</button>`;
                 else if(colType === 'group') delBtn = `<button class="del-btn" onclick="deleteMsg('group', '${doc.id}')">삭제</button>`;
@@ -297,6 +265,130 @@
                     <span class="msg-nick">${m.nickname}(@${m.userId})</span>
                     <span class="msg-date">${formatFullDate(m.timestamp)}</span>
                 </div>
+                <div class="msg-content">${m.text}</div>
+            </div>`;
+        }
+
+        function changeTab(t, b) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(t).classList.add('active');
+            document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
+            b.classList.add('active');
+            if(t === 'tab-friends') loadFriends();
+            if(t === 'tab-search') searchUser();
+        }
+
+        async function sendMsg(col, inputId) {
+            const input = document.getElementById(inputId);
+            const text = input.value.trim(); if(!text) return;
+            await db.collection(col).add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            input.value = "";
+        }
+        function loadPublicMsgs() {
+            db.collection("public_msgs").orderBy("timestamp").onSnapshot(snap => {
+                const box = document.getElementById('chat-window');
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'public')).join("");
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        function listenToRequests() {
+            db.collection("users").doc(my.uid).onSnapshot(doc => {
+                const d = doc.data();
+                if(d.requests && d.requests.length > 0) {
+                    document.getElementById('request-section').style.display='block';
+                    document.getElementById('request-list').innerHTML = d.requests.map(r => `
+                        <div class="list-item"><span>${r.nick}(@${r.id})</span>
+                        <div><button class="btn" style="padding:5px 10px; font-size:12px; background:var(--accent);" onclick="acceptFriend('${r.uid}','${r.nick}','${r.id}')">수락</button>
+                        <button class="btn" style="padding:5px 10px; font-size:12px; background:#999;" onclick="rejectFriend('${r.uid}','${r.nick}','${r.id}')">거절</button></div></div>
+                    `).join("");
+                } else document.getElementById('request-section').style.display='none';
+            });
+        }
+        async function acceptFriend(uid, nick, id) {
+            await db.collection("users").doc(my.uid).update({ friends: firebase.firestore.FieldValue.arrayUnion({ uid, nick, id }), requests: firebase.firestore.FieldValue.arrayRemove({ uid, nick, id }) });
+            await db.collection("users").doc(uid).update({ friends: firebase.firestore.FieldValue.arrayUnion({ uid: my.uid, nick: my.nickname, id: my.userId }), sentRequests: firebase.firestore.FieldValue.arrayRemove(my.uid) });
+            alert("친구 수락 완료!");
+        }
+        async function rejectFriend(uid, nick, id) {
+            await db.collection("users").doc(my.uid).update({ requests: firebase.firestore.FieldValue.arrayRemove({ uid, nick, id }) });
+        }
+        async function loadFriends() {
+            const d = await db.collection("users").doc(my.uid).get();
+            my.friends = d.data().friends || [];
+            const list = document.getElementById('friends-list'); list.innerHTML = "";
+            my.friends.forEach(f => {
+                list.innerHTML += `<div class="list-item"><span><b>${f.nick}</b>(@${f.id})</span><button class="btn" onclick="openDM('${f.uid}','${f.nick}')">채팅</button></div>`;
+            });
+        }
+
+        let unsubscribeDM = null;
+        function openDM(uid, nick) {
+            currentDMId = uid;
+            document.getElementById('friends-list-view').style.display='none';
+            document.getElementById('dm-view').style.display='flex';
+            const dmId = [my.uid, uid].sort().join("_");
+            
+            if(unsubscribeDM) unsubscribeDM();
+
+            unsubscribeDM = db.collection("dms").doc(dmId).collection("messages").orderBy("timestamp").onSnapshot(snap => {
+                const box = document.getElementById('dm-chat');
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'dm')).join("");
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+        function backToFriends() { document.getElementById('friends-list-view').style.display='block'; document.getElementById('dm-view').style.display='none'; }
+        async function sendDMMsg() {
+            const input = document.getElementById('dm-input'); const text = input.value.trim(); if(!text) return;
+            const dmId = [my.uid, currentDMId].sort().join("_");
+            await db.collection("dms").doc(dmId).collection("messages").add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            input.value = "";
+        }
+
+        function toggleGroupCreate() {
+            const ui = document.getElementById('group-create-ui');
+            ui.style.display = ui.style.display==='none'?'block':'none';
+            if(ui.style.display==='block') {
+                const sel = document.getElementById('group-friend-selector'); sel.innerHTML = "";
+                my.friends.forEach(f => { sel.innerHTML += `<div><input type="checkbox" class="g-member-chk" value="${f.uid}" data-nick="${f.nick}" data-id="${f.id}"> ${f.nick}(@${f.id})</div>`; });
+            }
+        }
+        async function createGroup() {
+            const name = document.getElementById('group-name-input').value.trim();
+            const chks = document.querySelectorAll('.g-member-chk:checked');
+            if(!name || chks.length === 0) return alert("그룹 이름과 멤버를 선택하세요.");
+            let members = [my.uid]; chks.forEach(c => members.push(c.value));
+            const newGroup = await db.collection("groups").add({ name, members, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+            await db.collection("groups").doc(newGroup.id).collection("messages").add({ system: true, text: `${my.nickname}님이 그룹을 생성했습니다.`, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            document.getElementById('group-create-ui').style.display='none';
+        }
+        function loadGroups() {
+            db.collection("groups").where("members", "array-contains", my.uid).onSnapshot(snap => {
+                const list = document.getElementById('groups-list'); list.innerHTML = "";
+                snap.forEach(doc => {
+                    const g = doc.data();
+                    list.innerHTML += `<div class="list-item" onclick="openGroupChat('${doc.id}', '${g.name}')"><span>📢 ${g.name} <small style="color:#aaa;">(${g.members.length})</small></span><small>입장 ></small></div>`;
+                });
+            });
+        }
+
+        let unsubscribeGroup = null;
+        function openGroupChat(id, name) {
+            currentGroupId = id;
+            document.getElementById('group-chat-view').style.display='flex';
+            document.getElementById('group-chat-title').innerText = name;
+            db.collection("groups").doc(id).onSnapshot(doc => {
+                if(doc.exists) document.getElementById('group-member-info').innerText = `멤버 ${doc.data().members.length}명 보기`;
+            });
+
+            if(unsubscribeGroup) unsubscribeGroup();
+
+            unsubscribeGroup = db.collection("groups").doc(id).collection("messages").orderBy("timestamp").onSnapshot(snap => {
+                const box = document.getElementById('group-chat-window');
+                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'group')).join("");
+                box.scrollTop = box.scrollHeight;
+            });
+        }
                 <div class="msg-content">${m.text}</div>
             </div>`;
         }
