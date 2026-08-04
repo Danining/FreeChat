@@ -194,7 +194,7 @@
             return `${year}년 ${month}월 ${date}일 ${ampm} ${h}:${m}`;
         }
 
-        // --- 삭제 함수 추가 ---
+        // --- 삭제 함수 ---
         async function deleteMsg(col, docId, isDM = false) {
             if(!confirm("메시지를 삭제하시겠습니까?")) return;
             try {
@@ -209,11 +209,47 @@
             } catch(e) { alert("삭제 권한이 없거나 오류가 발생했습니다."); }
         }
 
-        // --- 로그인 함수 ---
+        // --- 로그인 & 회원가입 ---
         async function login() {
             const e = document.getElementById('email').value.trim(); 
             const p = document.getElementById('password').value;
-async function saveInitialProfile() {
+            if(!e || !p) return alert("이메일과 비밀번호를 입력해주세요.");
+            try { await auth.signInWithEmailAndPassword(e, p); } catch(err) { alert(err.message); }
+        }
+
+        async function register() {
+            const e = document.getElementById('email').value.trim(); 
+            const p = document.getElementById('password').value;
+            if(!e || !p) return alert("이메일과 비밀번호를 입력해주세요.");
+            try { await auth.createUserWithEmailAndPassword(e, p); } catch(err) { alert(err.message); }
+        }
+
+        // --- 인증 상태 감지 ---
+        auth.onAuthStateChanged(async user => {
+            if(user) {
+                document.getElementById('auth-section').style.display = 'none';
+                const doc = await db.collection("users").doc(user.uid).get();
+                if(doc.exists) {
+                    my = doc.data(); my.uid = user.uid;
+                    document.getElementById('sidebar').style.display = 'flex';
+                    document.getElementById('main-content').style.display = 'flex';
+                    document.getElementById('edit-nick').value = my.nickname;
+                    document.getElementById('edit-id').value = my.userId;
+                    document.getElementById('my-email-display').innerText = user.email;
+                    loadPublicMsgs(); listenToRequests(); loadGroups(); searchUser();
+                } else {
+                    document.getElementById('setup-section').style.display = 'flex';
+                }
+            } else {
+                document.getElementById('auth-section').style.display = 'flex';
+                document.getElementById('setup-section').style.display = 'none';
+                document.getElementById('sidebar').style.display = 'none';
+                document.getElementById('main-content').style.display = 'none';
+            }
+        });
+
+        // --- 초기 프로필 설정 ---
+        async function saveInitialProfile() {
             const n = document.getElementById('setup-nick').value.trim(); 
             const i = document.getElementById('setup-id').value.toLowerCase().trim();
             if(n.length < 1 || n.length > 100) return alert("닉네임은 1~100자 사이로 입력해주세요.");
@@ -244,6 +280,7 @@ async function saveInitialProfile() {
             loadPublicMsgs(); listenToRequests(); loadGroups(); searchUser();
         }
 
+        // --- 메시지 렌더링 ---
         function renderMsg(doc, colType) {
             const m = doc.data();
             const isMe = m.senderId === my.uid;
@@ -269,6 +306,7 @@ async function saveInitialProfile() {
             </div>`;
         }
 
+        // --- 탭 변경 ---
         function changeTab(t, b) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.getElementById(t).classList.add('active');
@@ -278,6 +316,7 @@ async function saveInitialProfile() {
             if(t === 'tab-search') searchUser();
         }
 
+        // --- 광장 메시지 ---
         async function sendMsg(col, inputId) {
             const input = document.getElementById(inputId);
             const text = input.value.trim(); if(!text) return;
@@ -292,6 +331,7 @@ async function saveInitialProfile() {
             });
         }
 
+        // --- 친구 관리 ---
         function listenToRequests() {
             db.collection("users").doc(my.uid).onSnapshot(doc => {
                 const d = doc.data();
@@ -322,6 +362,7 @@ async function saveInitialProfile() {
             });
         }
 
+        // --- DM 기능 ---
         let unsubscribeDM = null;
         function openDM(uid, nick) {
             currentDMId = uid;
@@ -345,6 +386,7 @@ async function saveInitialProfile() {
             input.value = "";
         }
 
+        // --- 그룹 채팅 기능 ---
         function toggleGroupCreate() {
             const ui = document.getElementById('group-create-ui');
             ui.style.display = ui.style.display==='none'?'block':'none';
@@ -389,120 +431,6 @@ async function saveInitialProfile() {
                 box.scrollTop = box.scrollHeight;
             });
         }
-                <div class="msg-content">${m.text}</div>
-            </div>`;
-        }
-
-        function changeTab(t, b) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(t).classList.add('active');
-            document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
-            b.classList.add('active');
-            if(t === 'tab-friends') loadFriends();
-            if(t === 'tab-search') searchUser();
-        }
-
-        async function sendMsg(col, inputId) {
-            const input = document.getElementById(inputId);
-            const text = input.value.trim(); if(!text) return;
-            await db.collection(col).add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            input.value = "";
-        }
-        function loadPublicMsgs() {
-            db.collection("public_msgs").orderBy("timestamp").onSnapshot(snap => {
-                const box = document.getElementById('chat-window');
-                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'public')).join("");
-                box.scrollTop = box.scrollHeight;
-            });
-        }
-
-        function listenToRequests() {
-            db.collection("users").doc(my.uid).onSnapshot(doc => {
-                const d = doc.data();
-                if(d.requests && d.requests.length > 0) {
-                    document.getElementById('request-section').style.display='block';
-                    document.getElementById('request-list').innerHTML = d.requests.map(r => `
-                        <div class="list-item"><span>${r.nick}(@${r.id})</span>
-                        <div><button class="btn" style="padding:5px 10px; font-size:12px; background:var(--accent);" onclick="acceptFriend('${r.uid}','${r.nick}','${r.id}')">수락</button>
-                        <button class="btn" style="padding:5px 10px; font-size:12px; background:#999;" onclick="rejectFriend('${r.uid}','${r.nick}','${r.id}')">거절</button></div></div>
-                    `).join("");
-                } else document.getElementById('request-section').style.display='none';
-            });
-        }
-        async function acceptFriend(uid, nick, id) {
-            await db.collection("users").doc(my.uid).update({ friends: firebase.firestore.FieldValue.arrayUnion({ uid, nick, id }), requests: firebase.firestore.FieldValue.arrayRemove({ uid, nick, id }) });
-            await db.collection("users").doc(uid).update({ friends: firebase.firestore.FieldValue.arrayUnion({ uid: my.uid, nick: my.nickname, id: my.userId }), sentRequests: firebase.firestore.FieldValue.arrayRemove(my.uid) });
-            alert("친구 수락 완료!");
-        }
-        async function rejectFriend(uid, nick, id) {
-            await db.collection("users").doc(my.uid).update({ requests: firebase.firestore.FieldValue.arrayRemove({ uid, nick, id }) });
-        }
-        async function loadFriends() {
-            const d = await db.collection("users").doc(my.uid).get();
-            my.friends = d.data().friends || [];
-            const list = document.getElementById('friends-list'); list.innerHTML = "";
-            my.friends.forEach(f => {
-                list.innerHTML += `<div class="list-item"><span><b>${f.nick}</b>(@${f.id})</span><button class="btn" onclick="openDM('${f.uid}','${f.nick}')">채팅</button></div>`;
-            });
-        }
-        function openDM(uid, nick) {
-            currentDMId = uid;
-            document.getElementById('friends-list-view').style.display='none';
-            document.getElementById('dm-view').style.display='flex';
-            const dmId = [my.uid, uid].sort().join("_");
-            db.collection("dms").doc(dmId).collection("messages").orderBy("timestamp").onSnapshot(snap => {
-                const box = document.getElementById('dm-chat');
-                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'dm')).join("");
-                box.scrollTop = box.scrollHeight;
-            });
-        }
-        function backToFriends() { document.getElementById('friends-list-view').style.display='block'; document.getElementById('dm-view').style.display='none'; }
-        async function sendDMMsg() {
-            const input = document.getElementById('dm-input'); const text = input.value.trim(); if(!text) return;
-            const dmId = [my.uid, currentDMId].sort().join("_");
-            await db.collection("dms").doc(dmId).collection("messages").add({ text, senderId: my.uid, nickname: my.nickname, userId: my.userId, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            input.value = "";
-        }
-
-        function toggleGroupCreate() {
-            const ui = document.getElementById('group-create-ui');
-            ui.style.display = ui.style.display==='none'?'block':'none';
-            if(ui.style.display==='block') {
-                const sel = document.getElementById('group-friend-selector'); sel.innerHTML = "";
-                my.friends.forEach(f => { sel.innerHTML += `<div><input type="checkbox" class="g-member-chk" value="${f.uid}" data-nick="${f.nick}" data-id="${f.id}"> ${f.nick}(@${f.id})</div>`; });
-            }
-        }
-        async function createGroup() {
-            const name = document.getElementById('group-name-input').value.trim();
-            const chks = document.querySelectorAll('.g-member-chk:checked');
-            if(!name || chks.length === 0) return alert("그룹 이름과 멤버를 선택하세요.");
-            let members = [my.uid]; chks.forEach(c => members.push(c.value));
-            const newGroup = await db.collection("groups").add({ name, members, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-            await db.collection("groups").doc(newGroup.id).collection("messages").add({ system: true, text: `${my.nickname}님이 그룹을 생성했습니다.`, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            document.getElementById('group-create-ui').style.display='none';
-        }
-        function loadGroups() {
-            db.collection("groups").where("members", "array-contains", my.uid).onSnapshot(snap => {
-                const list = document.getElementById('groups-list'); list.innerHTML = "";
-                snap.forEach(doc => {
-                    const g = doc.data();
-                    list.innerHTML += `<div class="list-item" onclick="openGroupChat('${doc.id}', '${g.name}')"><span>📢 ${g.name} <small style="color:#aaa;">(${g.members.length})</small></span><small>입장 ></small></div>`;
-                });
-            });
-        }
-        function openGroupChat(id, name) {
-            currentGroupId = id;
-            document.getElementById('group-chat-view').style.display='flex';
-            document.getElementById('group-chat-title').innerText = name;
-            db.collection("groups").doc(id).onSnapshot(doc => {
-                if(doc.exists) document.getElementById('group-member-info').innerText = `멤버 ${doc.data().members.length}명 보기`;
-            });
-            db.collection("groups").doc(id).collection("messages").orderBy("timestamp").onSnapshot(snap => {
-                const box = document.getElementById('group-chat-window');
-                box.innerHTML = snap.docs.map(doc => renderMsg(doc, 'group')).join("");
-                box.scrollTop = box.scrollHeight;
-            });
-        }
         async function showGroupMembers() {
             const doc = await db.collection("groups").doc(currentGroupId).get();
             let names = [];
@@ -524,24 +452,32 @@ async function saveInitialProfile() {
             input.value = "";
         }
 
+        // --- 사용자 검색 ---
         async function searchUser() {
             const sid = document.getElementById('search-input').value.toLowerCase().trim();
-            const snap = await db.collection("users").get();
-            const res = document.getElementById('search-result'); res.innerHTML = "";
+            const res = document.getElementById('search-result'); 
+            res.innerHTML = "";
+            
+            if (!sid) return;
+
+            const snap = await db.collection("users")
+                .where("userId", ">=", sid)
+                .where("userId", "<=", sid + '\uf8ff')
+                .limit(20)
+                .get();
+
             snap.forEach(doc => {
                 const u = doc.data(); if(doc.id === my.uid) return;
-                if(sid === "" || u.userId.includes(sid) || u.nickname.toLowerCase().includes(sid)) {
-                    const isFriend = my.friends && my.friends.some(f => f.uid === doc.id);
-                    const isPending = my.sentRequests && my.sentRequests.includes(doc.id);
-                    res.innerHTML += `<div class="list-item">
-                        <span>${u.nickname}(@${u.userId})</span>
-                        ${isFriend ? '<b style="color:var(--accent);">친구</b>' : `
-                            <button class="btn" id="btn-${doc.id}" onclick="handleFriendReq('${doc.id}','${u.nickname}','${u.userId}')" style="${isPending?'background:#999':''}">
-                                ${isPending ? '신청됨' : '요청'}
-                            </button>
-                        `}
-                    </div>`;
-                }
+                const isFriend = my.friends && my.friends.some(f => f.uid === doc.id);
+                const isPending = my.sentRequests && my.sentRequests.includes(doc.id);
+                res.innerHTML += `<div class="list-item">
+                    <span>${u.nickname}(@${u.userId})</span>
+                    ${isFriend ? '<b style="color:var(--accent);">친구</b>' : `
+                        <button class="btn" id="btn-${doc.id}" onclick="handleFriendReq('${doc.id}','${u.nickname}','${u.userId}')" style="${isPending?'background:#999':''}">
+                            ${isPending ? '신청됨' : '요청'}
+                        </button>
+                    `}
+                </div>`;
             });
         }
         async function handleFriendReq(tid, nick, id) {
@@ -559,21 +495,31 @@ async function saveInitialProfile() {
             }
         }
 
+        // --- 프로필 수정 ---
         async function updateNick() {
-            const n = document.getElementById('edit-nick').value; if(n.length<1 || n.length>100) return alert("1~100자");
-            await db.collection("users").doc(my.uid).update({ nickname: n }); alert("저장되었습니다."); location.reload();
+            const n = document.getElementById('edit-nick').value.trim(); 
+            if(n.length < 1 || n.length > 100) return alert("1~100자 사이로 입력해주세요.");
+            await db.collection("users").doc(my.uid).update({ nickname: n }); 
+            my.nickname = n;
+            alert("저장되었습니다.");
         }
         async function updateID() {
             const nid = document.getElementById('edit-id').value.toLowerCase().trim();
-            if(nid.length<4 || nid.length>50) return alert("4~50자");
+            if(nid.length < 4 || nid.length > 50) return alert("4~50자 사이로 입력해주세요.");
             const lastUpdate = my.lastIdUpdate?.toDate ? my.lastIdUpdate.toDate() : new Date(0);
             if((new Date() - lastUpdate) / (1000*60*60*24) < 7) return alert("7일 후에 변경 가능합니다.");
             const check = await db.collection("users").where("userId", "==", nid).get();
             if(!check.empty) return alert("중복된 아이디입니다.");
-            await db.collection("users").doc(my.uid).update({ userId: nid, lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() });
-            alert("변경되었습니다."); location.reload();
+            
+            await db.collection("users").doc(my.uid).update({ 
+                userId: nid, 
+                lastIdUpdate: firebase.firestore.FieldValue.serverTimestamp() 
+            });
+            my.userId = nid;
+            alert("변경되었습니다.");
         }
 
+        // --- 네트워크 상태 반응 ---
         window.addEventListener('online', () => document.getElementById('offline-overlay').style.display='none');
         window.addEventListener('offline', () => document.getElementById('offline-overlay').style.display='flex');
     </script>
